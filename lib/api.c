@@ -269,6 +269,7 @@ static int request_table_ver_and_size(ryzen_access ry) {
 		case 0x5D000B: ry->table_size = 0xD54; break;
 		case 0x540104: ry->table_size = 0x6A8; break;
 		case 0x540105: ry->table_size = 0x6B4; break;
+		case 0x540208: ry->table_size = 0x8D0; break;
 		case 0x621102:
 		case 0x620105: ry->table_size = 0x724; break;
 		case 0x621202:
@@ -1766,6 +1767,9 @@ EXP float CALL get_apu_slow_value(ryzen_access ry) {
 	return NAN;
 }
 EXP float CALL get_vrm_current(ryzen_access ry) {
+	// Dragon Range mobile (0x540208): TDC limit (A), follows --vrm-current.
+	if (ry->table_ver == 0x00540208)
+		return read_valid_range(ry, 0x20, 0.001f, 500.0f);
 	if (ry->table_ver == 0x00540104 || ry->table_ver == 0x00540004) {
 		// Raphael / Dragon Range / EPYC 4004: some boards expose a real TDC
 		// limit at 0x20 (75A on EPYC 4344P). Others report 1000A here, which is
@@ -1825,6 +1829,8 @@ EXP float CALL get_vrm_current(ryzen_access ry) {
 EXP float CALL get_vrm_current_value(ryzen_access ry) {
 	// Raphael / Dragon Range (0x540104): TDC, current pulled from the VDD rail (A)
 	if (ry->table_ver == 0x00540104 || ry->table_ver == 0x00540004) { _read_float_value(0x50); }
+	// Dragon Range mobile (0x540208): TDC value, paired with the limit at 0x20.
+	if (ry->table_ver == 0x00540208) { _read_float_value(0x24); }
 	if (ry->table_ver == 0x00620105) { _read_float_value(0x438); }
 	if (ry->table_ver == 0x00620205) { _read_float_value(0x24); }
 	if (ry->table_ver == 0x00240903) { _read_float_value(0xC); }
@@ -1950,6 +1956,7 @@ EXP float CALL get_vrmsoc_current_value(ryzen_access ry) {
 EXP float CALL get_vrmmax_current(ryzen_access ry) {
 	switch (ry->table_ver)
 	{
+	case 0x00540208: // EDC location not confirmed on Dragon Range mobile
 	case 0x005D0008:
 	case 0x005D0009:
 	case 0x005D000A:
@@ -2012,6 +2019,7 @@ EXP float CALL get_vrmmax_current(ryzen_access ry) {
 EXP float CALL get_vrmmax_current_value(ryzen_access ry) {
 	switch (ry->table_ver)
 	{
+	case 0x00540208: // EDC location not confirmed on Dragon Range mobile
 	case 0x005D0008:
 	case 0x005D0009:
 	case 0x005D000A:
@@ -2156,7 +2164,7 @@ EXP float CALL get_tctl_temp(ryzen_access ry) {
 	// Confirmed: constant 80 across dumps while the value at 0x2C rises to ~81
 	// under load and holds there (thermal-limited), i.e. a configured 80C cap.
 	if (ry->table_ver == 0x00620105) { _read_float_value(0x344); }
-	if (ry->table_ver == 0x00540104 || ry->table_ver == 0x00540004 || ry->table_ver == 0x00620205) { _read_float_value(0x28); }
+	if (ry->table_ver == 0x00540104 || ry->table_ver == 0x00540004 || ry->table_ver == 0x00540208 || ry->table_ver == 0x00620205) { _read_float_value(0x28); }
 	if (ry->table_ver == 0x00240903) { return NAN; }
 	switch (ry->table_ver)
 	{
@@ -2218,6 +2226,10 @@ EXP float CALL get_tctl_temp_value(ryzen_access ry) {
 	if (ry->table_ver == 0x00240903) {
 		// Matisse PM table 0x240903: offset 0x14 tracks k10temp Tctl/TSI0.
 		_read_float_value(0x14);
+	}
+	if (ry->table_ver == 0x00540208) {
+		// Dragon Range mobile: 0x2C matches k10temp Tctl.
+		_read_float_value(0x2C);
 	}
 	if (ry->table_ver == 0x00540104) {
 		if (!ry->table_values)
@@ -2771,6 +2783,9 @@ EXP float CALL get_core_power(ryzen_access ry, uint32_t core) {
 		case 0x00540004: // EPYC 4004 / 16-core Raphael, 16 core entries
 			baseOffset = 0x494;
 			break;
+		case 0x00540208: // Dragon Range mobile (MS-A2 8945HX), 16 entries
+			baseOffset = 0x4A8;
+			break;
 		case 0x00540104: // Raphael / Dragon Range desktop (Ryzen 7000), 6/8-core CCD
 			baseOffset = 0x494;
 			break;
@@ -2837,6 +2852,9 @@ EXP float CALL get_core_volt(ryzen_access ry, uint32_t core) {
 		case 0x00540004: // EPYC 4004 / 16-core Raphael
 			baseOffset = 0x4D4;
 			break;
+		case 0x00540208: // Dragon Range mobile (MS-A2 8945HX), 16 entries
+			baseOffset = 0x4E8;
+			break;
 		case 0x00540104: // Raphael / Dragon Range desktop (Ryzen 7000)
 			baseOffset = 0x4B4;
 			break;
@@ -2902,6 +2920,9 @@ EXP float CALL get_core_temp(ryzen_access ry, uint32_t core) {
 			break;
 		case 0x00540004: // EPYC 4004 / 16-core Raphael
 			baseOffset = 0x514;
+			break;
+		case 0x00540208: // Dragon Range mobile (MS-A2 8945HX), 16 entries
+			baseOffset = 0x528;
 			break;
 		case 0x00540104: // Raphael / Dragon Range desktop (Ryzen 7000)
 			baseOffset = 0x4D4;
@@ -2972,6 +2993,9 @@ EXP float CALL get_core_clk(ryzen_access ry, uint32_t core) {
 		case 0x00540004: // EPYC 4004 / 16-core Raphael
 			baseOffset = 0x554;
 			break;
+		case 0x00540208: // Dragon Range mobile (MS-A2 8945HX), 16 entries
+			baseOffset = 0x568;
+			break;
 		case 0x00540104: // Raphael / Dragon Range desktop (Ryzen 7000)
 			baseOffset = 0x4F4;
 			break;
@@ -3007,6 +3031,9 @@ EXP float CALL get_core_freqeff(ryzen_access ry, uint32_t core) {
 			break;
 		case 0x00540004: // EPYC 4004 / 16-core Raphael
 			baseOffset = 0x594;
+			break;
+		case 0x00540208: // Dragon Range mobile (MS-A2 8945HX), 16 entries
+			baseOffset = 0x5A8;
 			break;
 		case 0x00540104: // Raphael / Dragon Range desktop (Ryzen 7000)
 			baseOffset = 0x514;
@@ -3048,6 +3075,9 @@ EXP float CALL get_core_c0(ryzen_access ry, uint32_t core) {
 		case 0x00540004:
 			baseOffset = 0x5D4;
 			break;
+		case 0x00540208: // Dragon Range mobile (MS-A2 8945HX), 16 entries
+			baseOffset = 0x5E8;
+			break;
 		case 0x00540104: // Raphael / Dragon Range desktop (Ryzen 7000)
 			baseOffset = 0x534;
 			break;
@@ -3088,6 +3118,9 @@ EXP float CALL get_core_cc1(ryzen_access ry, uint32_t core) {
 		case 0x00540004:
 			baseOffset = 0x614;
 			break;
+		case 0x00540208: // Dragon Range mobile (MS-A2 8945HX), 16 entries
+			baseOffset = 0x628;
+			break;
 		case 0x00540104: // Raphael / Dragon Range desktop (Ryzen 7000)
 			baseOffset = 0x554;
 			break;
@@ -3127,6 +3160,9 @@ EXP float CALL get_core_cc6(ryzen_access ry, uint32_t core) {
 			break;
 		case 0x00540004:
 			baseOffset = 0x654;
+			break;
+		case 0x00540208: // Dragon Range mobile (MS-A2 8945HX), 16 entries
+			baseOffset = 0x668;
 			break;
 		case 0x00540104: // Raphael / Dragon Range desktop (Ryzen 7000)
 			baseOffset = 0x574;
@@ -3401,6 +3437,8 @@ EXP float CALL get_gfx_temp(ryzen_access ry) {
 EXP float CALL get_fclk(ryzen_access ry) {
 	// Raphael / Dragon Range (0x540104): Infinity Fabric clock (MHz)
 	if (ry->table_ver == 0x00540104 || ry->table_ver == 0x00540004) { _read_float_value(0x1A4); }
+	// Dragon Range mobile (0x540208): FCLK (MHz)
+	if (ry->table_ver == 0x00540208) { _read_float_value(0x11C); }
 	if (ry->table_ver == 0x00620105) { return read_valid_range(ry, 0x11C, 1.0f, 10000.0f); }
 	if (ry->table_ver == 0x00620205) { return read_valid_range(ry, 0x1C4, 1.0f, 10000.0f); }
 	if (ry->table_ver == 0x00240903) { return read_valid_range(ry, 0xC0, 1.0f, 10000.0f); }
@@ -3464,6 +3502,8 @@ EXP float CALL get_fclk(ryzen_access ry) {
 EXP float CALL get_mem_clk(ryzen_access ry) {
 	// Raphael / Dragon Range (0x540104): memory clock (MHz)
 	if (ry->table_ver == 0x00540104 || ry->table_ver == 0x00540004) { _read_float_value(0x1D4); }
+	// Dragon Range mobile (0x540208): MCLK (MHz), half the DDR transfer rate
+	if (ry->table_ver == 0x00540208) { _read_float_value(0x13C); }
 	if (ry->table_ver == 0x00620105) { _read_float_value(0x13C); }
 	if (ry->table_ver == 0x001E0004) { _read_float_value(0x298); }
 	switch (ry->table_ver)
@@ -3631,6 +3671,8 @@ EXP float CALL get_soc_volt(ryzen_access ry) {
 	// effort: this ~1.1V rail is stable idle-vs-load; it may be VDDCR_SOC or the
 	// coupled memory voltage, but the reading is a valid SoC-domain voltage.
 	if (ry->table_ver == 0x00540104 || ry->table_ver == 0x00540004) { _read_float_value(0xE0); }
+	// Dragon Range mobile (0x540208): VDDCR_SOC (V)
+	if (ry->table_ver == 0x00540208) { _read_float_value(0xD4); }
 	if (ry->table_ver == 0x00620105) { return read_valid_range(ry, 0x43C, 0.001f, 2.0f); }
 	if (ry->table_ver == 0x00620205) { _read_float_value(0xE8); }
 	if (ry->table_ver == 0x00240903) { _read_float_value(0xB0); }
@@ -3682,6 +3724,8 @@ EXP float CALL get_soc_power(ryzen_access ry) {
 EXP float CALL get_socket_power(ryzen_access ry) {
 	// Raphael / Dragon Range (0x540104): whole-socket power (W)
 	if (ry->table_ver == 0x00540104 || ry->table_ver == 0x00540004) { _read_float_value(0x68); }
+	// Dragon Range mobile (0x540208): socket power (W)
+	if (ry->table_ver == 0x00540208) { _read_float_value(0x68); }
 	if (ry->table_ver == 0x00620105) { _read_float_value(0x50); }
 	if (ry->table_ver == 0x00620205) { _read_float_value(0x68); }
 	if (ry->table_ver == 0x00240903) { _read_float_value(0x4); }

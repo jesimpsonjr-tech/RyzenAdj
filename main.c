@@ -101,6 +101,7 @@ static int info_core_count(ryzen_access ry)
 {
 	switch (get_table_ver(ry)) {
 		case 0x00540004:
+		case 0x00540208:
 		case 0x00620205:
 			return 16;
 		case 0x00620105:
