@@ -210,10 +210,11 @@ static void show_info_table(ryzen_access ry)
 	//per-core detail: power/volt/temp/reported clock plus effective clock and
 	//C-state residency (effective clock and residencies are new metrics)
 	{
-		int core, printed_any = 0, has_freqeff = 0, has_c0 = 0, has_cc1 = 0, has_c6 = 0;
+		int core, printed_any = 0, has_freqeff = 0, has_c0 = 0, has_cc1 = 0, has_c6 = 0, has_co = 0;
 		int core_count = info_core_count(ry);
 		float power[MAX_INFO_CORES], volt[MAX_INFO_CORES], temp[MAX_INFO_CORES], clk[MAX_INFO_CORES];
 		float freqeff[MAX_INFO_CORES], c0[MAX_INFO_CORES], cc1[MAX_INFO_CORES], c6[MAX_INFO_CORES];
+		int co[MAX_INFO_CORES], co_ok[MAX_INFO_CORES];
 
 		for (core = 0; core < core_count; core++) {
 			power[core] = get_core_power(ry, core);
@@ -232,6 +233,8 @@ static void show_info_table(ryzen_access ry)
 			has_c0 |= (c0[core] == c0[core]);
 			has_cc1 |= (cc1[core] == cc1[core]);
 			has_c6 |= (c6[core] == c6[core]);
+			co_ok[core] = (get_coper(ry, core, &co[core]) == 0);
+			has_co |= co_ok[core];
 			printed_any = 1;
 		}
 		if (printed_any) {
@@ -240,11 +243,13 @@ static void show_info_table(ryzen_access ry)
 			if (has_c0) printf(" C0%%  |");
 			if (has_cc1) printf(" CC1%% |");
 			if (has_c6) printf(" C6%%  |");
+			if (has_co) printf("  CO |");
 			printf("\n|------|----------|---------|---------|-----------|");
 			if (has_freqeff) printf("---------|");
 			if (has_c0) printf("------|");
 			if (has_cc1) printf("------|");
 			if (has_c6) printf("------|");
+			if (has_co) printf("-----|");
 			printf("\n");
 
 			for (core = 0; core < core_count; core++) {
@@ -258,6 +263,10 @@ static void show_info_table(ryzen_access ry)
 				if (has_c0) printf(" %4.0f |", c0[core]);
 				if (has_cc1) printf(" %4.0f |", cc1[core]);
 				if (has_c6) printf(" %4.0f |", c6[core]);
+				if (has_co) {
+					if (co_ok[core]) printf(" %3d |", co[core]);
+					else printf("   - |");
+				}
 				printf("\n");
 			}
 		}

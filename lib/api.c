@@ -1637,6 +1637,32 @@ EXP int CALL set_coper(ryzen_access ry, uint32_t value) {
 	return err;
 }
 
+// Read back the Curve Optimizer margin of one core (RSMU GetDldoPsmMargin,
+// the counterpart of set_coper's 0x6). Core mask: CCD in bits 28+,
+// core within the CCD in bits 20+. Validated on Dragon Range (8945HX);
+// it returned exactly the value set by --set-coall and by the BIOS.
+EXP int CALL get_coper(ryzen_access ry, uint32_t core, int *margin) {
+	smu_service_args_t args = {0, 0, 0, 0, 0, 0};
+	int resp;
+
+	switch (ry->family)
+	{
+	case FAM_DRAGONRANGE:
+		break;
+	default:
+		return ADJ_ERR_FAM_UNSUPPORTED;
+	}
+
+	args.arg0 = ((core / 8) << 28) | ((core % 8) << 20);
+	resp = smu_service_req(ry->psmu, 0xD5, &args);
+	if (resp == REP_MSG_UnknownCmd)
+		return ADJ_ERR_SMU_UNSUPPORTED;
+	if (resp != REP_MSG_OK)
+		return ADJ_ERR_SMU_REJECTED;
+	*margin = (int32_t)args.arg0;
+	return 0;
+}
+
 EXP int CALL set_cogfx(ryzen_access ry, uint32_t value) {
     int err = ADJ_ERR_FAM_UNSUPPORTED;
 
