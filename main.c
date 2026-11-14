@@ -4,6 +4,11 @@
 
 #include <string.h>
 #include <stdlib.h>
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
 
 #include "lib/ryzenadj.h"
 #include "argparse.h"
@@ -91,6 +96,15 @@ static const char *family_name(enum ryzen_family fam)
 	return "Unknown";
 }
 
+static void info_sleep_ms(unsigned int ms)
+{
+#ifdef _WIN32
+	Sleep(ms);
+#else
+	usleep(ms * 1000);
+#endif
+}
+
 static void print_info_value_if_valid(const char *tableFormat, const char *name, float value, const char *parameter)
 {
 	if (value == value)
@@ -146,6 +160,16 @@ static void show_info_table(ryzen_access ry)
 
 	//get refresh table after adjust
 	int errorcode = refresh_table(ry);
+	if(errorcode){
+		printf("Unable to refresh power metric table: %d\n", errorcode);
+		return;
+	}
+	//The first transfer after the table has sat unread for a long time can
+	//return an old snapshot (seen on Dragon Range rigs whose only ryzenadj
+	//use for days was setting limits: every rail read ~10 W / 1.3 A while
+	//mining at 95 W). Give the SMU a moment and read it again.
+	info_sleep_ms(250);
+	errorcode = refresh_table(ry);
 	if(errorcode){
 		printf("Unable to refresh power metric table: %d\n", errorcode);
 		return;
