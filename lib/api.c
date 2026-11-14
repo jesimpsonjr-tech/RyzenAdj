@@ -2668,6 +2668,10 @@ EXP float CALL get_cclk_busy_value(ryzen_access ry) {
 
 EXP float CALL get_stapm_time(ryzen_access ry)
 {
+	// Dragon Range mobile (0x540208): STAPM time constant (s) at 0x4A0.
+	// Validated: --stapm-time (MP1 0x4E) moved it 300 -> 150 -> 300.
+	if (ry->table_ver == 0x00540208)
+		return read_valid_range(ry, 0x4A0, 0.001f, 10000.0f);
 	switch (ry->table_ver)
 	{
 	case 0x001E0002:
@@ -2718,6 +2722,13 @@ EXP float CALL get_stapm_time(ryzen_access ry)
 }
 
 EXP float CALL get_slow_time(ryzen_access ry) {
+	// Dragon Range mobile (0x540208): slow PPT time constant, stored at 0x18
+	// in thousands of seconds. Validated: --slow-time (MP1 0x60) moved it
+	// 0.030 -> 0.007 -> 0.030 for 30 -> 7 -> 30 s.
+	if (ry->table_ver == 0x00540208) {
+		float v = read_valid_range(ry, 0x18, 0.000001f, 10.0f);
+		return (v == v) ? v * 1000.0f : NAN;
+	}
 	switch (ry->table_ver)
 	{
 	case 0x005D0008:
