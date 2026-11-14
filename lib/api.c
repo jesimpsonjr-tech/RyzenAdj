@@ -954,6 +954,11 @@ EXP int CALL set_vrmmax_current(ryzen_access ry, uint32_t value){
 	case FAM_VANGOGH:
 		_do_adjust(0x1e);
 		break;
+	case FAM_DRAGONRANGE:
+		// MP1 SetEDCVDDLimit. Validated on MS-A2 (8945HX): PM table 0x540208
+		// offset 0xF8 followed 160 A -> 150 A -> 160 A.
+		_do_adjust(0x3d);
+		break;
 	case FAM_FIRERANGE:
 		_do_adjust(0x3c);
 		break;
@@ -1940,6 +1945,10 @@ EXP float CALL get_vrmsoc_current(ryzen_access ry) {
 	return NAN;
 }
 EXP float CALL get_vrmsoc_current_value(ryzen_access ry) {
+	// Dragon Range mobile (0x540208): SoC rail current (A). Checked: SOC volt
+	// (0xD4) x this = SOC power (0xDC) to three decimals.
+	if (ry->table_ver == 0x00540208)
+		return read_valid_range(ry, 0xD8, 0.0f, 500.0f);
 	switch (ry->table_ver)
 	{
 	case 0x001E0001:
@@ -1980,9 +1989,12 @@ EXP float CALL get_vrmsoc_current_value(ryzen_access ry) {
 	return NAN;
 }
 EXP float CALL get_vrmmax_current(ryzen_access ry) {
+	// Dragon Range mobile (0x540208): EDC VDD limit (A). Confirmed by setting
+	// --vrmmax-current (MP1 0x3D) and watching this offset follow.
+	if (ry->table_ver == 0x00540208)
+		return read_valid_range(ry, 0xF8, 0.001f, 500.0f);
 	switch (ry->table_ver)
 	{
-	case 0x00540208: // EDC location not confirmed on Dragon Range mobile
 	case 0x005D0008:
 	case 0x005D0009:
 	case 0x005D000A:
@@ -2043,9 +2055,13 @@ EXP float CALL get_vrmmax_current(ryzen_access ry) {
 	return NAN;
 }
 EXP float CALL get_vrmmax_current_value(ryzen_access ry) {
+	// Dragon Range mobile (0x540208): EDC VDD value (A), the peak-current
+	// reading paired with the limit at 0xF8 (always above the TDC value,
+	// moves in 0.25 A steps). Same limit/value pairing as Fire Range.
+	if (ry->table_ver == 0x00540208)
+		return read_valid_range(ry, 0xFC, 0.0f, 500.0f);
 	switch (ry->table_ver)
 	{
-	case 0x00540208: // EDC location not confirmed on Dragon Range mobile
 	case 0x005D0008:
 	case 0x005D0009:
 	case 0x005D000A:
@@ -3564,6 +3580,7 @@ EXP float CALL get_uclk(ryzen_access ry) {
 	case 0x00240903: // Matisse desktop - memory controller clock
 		return read_valid_range(ry, 0xC4, 1.0f, 10000.0f);
 	case 0x00620105: // Granite Ridge - memory controller clock
+	case 0x00540208: // Dragon Range mobile - UCLK block 0x12C (FCLK 0x11C, MCLK 0x13C)
 		return read_valid_range(ry, 0x12C, 1.0f, 10000.0f);
 	case 0x00620205: // Fire Range - memory controller clock
 		return read_valid_range(ry, 0x1C8, 1.0f, 10000.0f);
@@ -3611,6 +3628,7 @@ EXP float CALL get_mem_transfer_rate(ryzen_access ry) {
 			return phy * 2.0f;
 		return NAN;
 	}
+	case 0x00540208: // Dragon Range mobile - MCLK is half the DDR5 rate
 	case 0x00620105: { // Granite Ridge - DDR transfer rate from memory clock
 		float mem = get_mem_clk(ry);
 		if (mem == mem)
@@ -3726,6 +3744,8 @@ EXP float CALL get_soc_volt(ryzen_access ry) {
 
 EXP float CALL get_soc_power(ryzen_access ry) {
 	if (ry->table_ver == 0x00620105) { return read_valid_range(ry, 0x54, 0.001f, 500.0f); }
+	// Dragon Range mobile (0x540208): SoC rail power (W) = 0xD4 V x 0xD8 A
+	if (ry->table_ver == 0x00540208) { return read_valid_range(ry, 0xDC, 0.001f, 500.0f); }
 	switch (ry->table_ver)
 	{
 	case 0x00370000:
@@ -3743,6 +3763,30 @@ EXP float CALL get_soc_power(ryzen_access ry) {
 		_read_float_value(0x1a4); //420
 	default:
 		break;
+	}
+	return NAN;
+}
+
+// VDDCR_VDD (core rail) telemetry. Dragon Range mobile (0x540208): rail
+// block 0xC0 V / 0xC4 A / 0xC8 W; 0xC4 equals the TDC value and V x A = W.
+EXP float CALL get_vdd_volt(ryzen_access ry) {
+	if (ry->table_ver == 0x00540208) { return read_valid_range(ry, 0xC0, 0.001f, 2.0f); }
+	return NAN;
+}
+
+EXP float CALL get_vdd_power(ryzen_access ry) {
+	if (ry->table_ver == 0x00540208) { return read_valid_range(ry, 0xC8, 0.001f, 500.0f); }
+	return NAN;
+}
+
+// Core Fmax ceiling (MHz) the SMU currently allows. Dragon Range mobile
+// (0x540208): per-core Fmax array at 0x6E8 (GHz), core 0 used. Sits at the
+// 5450 MHz boost limit on the 8945HX and dips a few MHz under reliability/FIT
+// pressure, so it is a live ceiling, not a fixed setting.
+EXP float CALL get_boost_limit(ryzen_access ry) {
+	if (ry->table_ver == 0x00540208) {
+		float ghz = read_valid_range(ry, 0x6E8, 0.1f, 10.0f);
+		return (ghz == ghz) ? ghz * 1000.0f : NAN;
 	}
 	return NAN;
 }

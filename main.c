@@ -183,7 +183,10 @@ static void show_info_table(ryzen_access ry)
 	print_info_value_if_valid(tableFormat, "STT VALUE dGPU", get_dgpu_skin_temp_value(ry), "");
 	print_info_value_if_valid(tableFormat, "CCLK Boost SETPOINT", get_cclk_setpoint(ry), "power-saving /");
 	print_info_value_if_valid(tableFormat, "CCLK BUSY VALUE", get_cclk_busy_value(ry), "max-performance");
+	print_info_value_if_valid(tableFormat, "CORE FMAX (MHz)", get_boost_limit(ry), "");
 	print_info_value_if_valid(tableFormat, "SOCKET POWER", get_socket_power(ry), "");
+	print_info_value_if_valid(tableFormat, "CORE (VDD) POWER", get_vdd_power(ry), "");
+	print_info_value_if_valid(tableFormat, "CORE (VDD) VOLT", get_vdd_volt(ry), "");
 	print_info_value_if_valid(tableFormat, "SOC POWER", get_soc_power(ry), "");
 	print_info_value_if_valid(tableFormat, "SOC VOLT", get_soc_volt(ry), "");
 	print_info_value_if_valid(tableFormat, "GFX POWER", get_gfx_power(ry), "");
@@ -198,7 +201,7 @@ static void show_info_table(ryzen_access ry)
 	float uclk = get_uclk(ry);
 	if (uclk == uclk)
 		print_info_value_if_valid(tableFormat, "UCLK (MHz)", uclk, "");
-	else
+	if (uclk != uclk || get_table_ver(ry) == 0x00540208)
 		print_info_value_if_valid(tableFormat, "MEM CLK (MHz)", get_mem_clk(ry), "");
 	print_info_value_if_valid(tableFormat, "MEM PHY CLK (MHz)", get_mem_phy_clk(ry), "");
 	print_info_value_if_valid(tableFormat, "MEM RATE (MT/s)", get_mem_transfer_rate(ry), "");

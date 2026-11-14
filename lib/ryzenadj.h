@@ -187,6 +187,10 @@ EXP float CALL get_ipu_clk(ryzen_access ry);
 EXP float CALL get_soc_power(ryzen_access ry);
 EXP float CALL get_soc_volt(ryzen_access ry);
 
+EXP float CALL get_vdd_power(ryzen_access ry);
+EXP float CALL get_vdd_volt(ryzen_access ry);
+EXP float CALL get_boost_limit(ryzen_access ry);
+
 EXP float CALL get_socket_power(ryzen_access ry);
 
 #ifdef __cplusplus
